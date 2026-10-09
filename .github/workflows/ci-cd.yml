@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
 
 jobs:
   test:
@@ -47,3 +49,34 @@ jobs:
       - name: Publier l'image
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/tp-cicd:latest
+
+  deploy:
+    needs: docker
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Définir le tag Docker
+        id: version
+        run: |
+          if [["$GITHUB_REF" == refs/tags/*]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Connexion à Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Contruire les images
+        run: |
+          docker build \
+            -t ${{ secrets.DOCKER_USERNAME }}/tp-cicd:${{steps.version.outputs.tag}} .
+
+      - name: Publier l'image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/tp-cicd:${{steps.version.outputs.tag}}
